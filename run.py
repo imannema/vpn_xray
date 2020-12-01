@@ -3,8 +3,8 @@ import numpy as np
 from scipy.signal import find_peaks
 import os
 import sys
-#from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+#from sklearn.svm import SVC
 
 #helper function to clean data, helps correlate e columns
 def get_size_ind(x,dirs,col):
@@ -19,9 +19,9 @@ def build_features(datasets,streaming=None):
 
     #store feature for every dataset
     if (streaming is not None):
-        fdf = pd.DataFrame(columns = ['%peaks_download','%peaks_upload','peak_heights_std_download','peak_heights_std_upload','time_between_peaks_std_download','time_between_peaks_std_upload','download_packets_cv','is_streaming'])
+        fdf = pd.DataFrame(columns = ['%peaks_download','%peaks_upload','peak_heights_std_download','peak_heights_std_upload','time_between_peaks_std_download','time_between_peaks_std_upload','download_packets_cv','upload_packets_cv','upload_time_cv','download_time_cv','std_upload_time','std_download_time','is_streaming'])
     else:
-        fdf = pd.DataFrame(columns = ['%peaks_download','%peaks_upload','peak_heights_std_download','peak_heights_std_upload','time_between_peaks_std_download','time_between_peaks_std_upload','download_packets_cv'])
+        fdf = pd.DataFrame(columns = ['%peaks_download','%peaks_upload','peak_heights_std_download','peak_heights_std_upload','time_between_peaks_std_download','time_between_peaks_std_upload','download_packets_cv','upload_packets_cv','upload_time_cv','download_time_cv','std_upload_time','std_download_time'])
     index=0
     #go through every dataset
     for path in datasets:
@@ -32,9 +32,9 @@ def build_features(datasets,streaming=None):
         df['packet_sizes'] = df['packet_sizes'].str.strip(';').str.split(';').apply(lambda x:[int(i) for i in x])
         df['packet_dirs'] = df['packet_dirs'].str.strip(';').str.split(';').apply(lambda x: [int(i) for i in x])
 
-        #df['psize_from1'] = df.apply(get_size_ind,args=('1','packet_sizes'),axis=1)
+        df['psize_from1'] = df.apply(get_size_ind,args=('1','packet_sizes'),axis=1)
         df['psize_from2'] = df.apply(get_size_ind,args=('2','packet_sizes'),axis=1)
-        #df['ptime_from1'] = df.apply(get_size_ind,args=('1','packet_times'),axis=1)
+        df['ptime_from1'] = df.apply(get_size_ind,args=('1','packet_times'),axis=1)
         df['ptime_from2'] = df.apply(get_size_ind,args=('2','packet_times'),axis=1)
 
         #threshold for peaks
@@ -60,6 +60,17 @@ def build_features(datasets,streaming=None):
         row.append(np.std(([peak_times_upload[i]-peak_times_upload[i-1] for i in range(len(peak_times_upload)) if i!=0])))
         # calculate standard deviation to the mean of individual packet sizes being downloaded (coefficient of variation)
         row.append((np.std(df['psize_from2'].sum())/np.mean(df['psize_from2'].sum())))
+        # calculate standard deviation to the mean of individual packet sizes being uploaded (coefficient of variation)
+        row.append((np.std(df['psize_from1'].sum())/np.mean(df['psize_from1'].sum())))
+        #get (coefficient of variation) upload time
+        row.append(np.std(df['ptime_from1'].apply(lambda x: max(x)-min(x) if x!=[] else 0))/np.mean(df['ptime_from1'].apply(lambda x: max(x)-min(x) if x!=[] else 0)))
+        #get (coefficient of variation) download time
+        row.append(np.std(df['ptime_from2'].apply(lambda x: max(x)-min(x) if x!=[] else 0))/np.mean(df['ptime_from2'].apply(lambda x: max(x)-min(x) if x!=[] else 0)))
+        #get std upload time
+        row.append(np.std(df['ptime_from1'].apply(lambda x: max(x)-min(x) if x!=[] else 0)))
+        #get std download time
+        row.append(np.std(df['ptime_from2'].apply(lambda x: max(x)-min(x) if x!=[] else 0)))
+
         #indicate if it is streaming or not
         if (streaming is not None):
             row.append(streaming)
@@ -92,8 +103,8 @@ def train_run(data):
 
     #train model
     print('training model...')
-    model = SVC().fit(X_train,y_train)
-    #model = RandomForestClassifier(max_depth=3).fit(X_train, y_train)
+    #model = SVC().fit(X_train,y_train)
+    model = RandomForestClassifier(random_state=43).fit(X_train, y_train)
     #get prediction
     print('calculating prediction...')
     prediction = model.predict(data.drop('is_streaming',axis=1,errors='ignore'))
