@@ -1,4 +1,4 @@
-# VPN XRay
+# VPN XRay 
 
 For this project we dive into the world of network traffic information and ultimately build a classifier that determines if network traffic data involves video streaming or not.
 
